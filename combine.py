@@ -3,23 +3,45 @@ import cv2
 from PIL import Image
 import numpy as np
 import easyocr
+import pdb
 
-path = '/home/pritika/zh_val'
+path = '/home/pritika/workspace/Data/xfun_es'
 reader = easyocr.Reader(['ch_sim','en'], gpu =True)
 
-with open('XFUND_table.json') as json_file:
+with open('XFUND_es/table.json') as json_file:
     table_dict = json.load(json_file)
 
-with open('XFUND_easy.json') as json_file:
-    easy_dict = json.load(json_file)
+with open('XFUND_es/easy_para.json') as json_file:
+    easy_dict_para = json.load(json_file)
 
+with open('XFUND_es/easy_line.json') as json_file:
+    easy_dict_line = json.load(json_file)
+
+
+def normalize_bbox(bbox, size):
+    return [
+        int(1000 * bbox[0] / size[0]),
+        int(1000 * bbox[1] / size[1]),
+        int(1000 * bbox[2] / size[0]),
+        int(1000 * bbox[3] / size[1]),
+    ]
 
 def crop(file, table_box):
     im = Image.open(f'{path}/{file}')
+    im = im.convert("L")
     final_table = []
+    # i = 0
     for box in table_box:
         im_crop = im.crop((box[0],box[1],box[0]+box[2], box[1]+box[3]))
         crop_array = np.asarray(im_crop)
+        equ = cv2.equalizeHist(crop_array)
+        # Gaussian blur
+        blur = cv2.GaussianBlur(equ, (5, 5), 1)
+
+        # manual thresholding
+        th2 = 60 # this threshold might vary!
+        equ[equ>=th2] = 255
+        equ[equ<th2]  = 0
         results = reader.readtext(crop_array)
         if (len(results) != 0):
             final_table.append(box)
@@ -58,6 +80,8 @@ def IoU(box1, box2):
     height_inter = abs(y_inter1 - y_inter2)
     area_inter = width_inter*height_inter
 
+    
+
     area_1 = w1*h1
     area_2 = w2*h2
 
@@ -68,27 +92,56 @@ def IoU(box1, box2):
 
     return iou
 
-for file in table_dict.keys():
-    table_box = crop(file, table_dict[file])
-    easy_box = easy_dict[file]
-    final_box = table_box
 
-    for box in easy_box:
+final_box_dict = {}
+
+for file in table_dict.keys():
+    table_box = table_dict[file]
+    easy_para_box = easy_dict_para[file]
+    easy_line_box = easy_dict_line[file]
+    final_box_dict[file] = []
+    final_box = crop(file, table_box)
+    table_box = final_box
+    
+    final_para = []
+    for box in easy_para_box:
         flag = True
         for b in table_box:
-            iou = IoU(box,b)
-            if iou > 0 and iou <=1:
+            iou = IoU(box,b)                
+            if iou > 0.001 and iou <=1:
                 flag = False
                 break
         if flag:
-            final_box.append(box)
+            final_para.append(box)
+    #pdb.set_trace()
+
+    final_box = final_box + final_para 
+    
+    final_line = []
+    for box in easy_line_box:
+        flag = True
+        for b in final_box:
+            iou = IoU(box,b)
+            if iou > 0.001 and iou <= 1:
+                flag = False
+                break
+        if flag:
+            final_line.append(box)
+
+    final_box = final_box + final_line
 
     temp = cv2.imread(path+'/'+file)
     i = 0
     color = [(255,0,0),(0,255,0),(0,0,255)]
     for ele in final_box:
+        new_box = [ele[0], ele[1], ele[0]+ele[2], ele[1]+ele[3]]
+        final_box_dict[file].append(normalize_bbox(new_box, temp.shape))
         temp = cv2.rectangle(temp, (ele[0],ele[1]), (ele[0]+ele[2], ele[1]+ele[3]),color[i],5)
         i += 1
         i = i % 3
-    cv2.imwrite(f"combined/{file}", temp)
+    cv2.imwrite(f"/home/pritika/workspace/layout_structure/XFUND_es/combined/{file}", temp)
+
+final_file = open("/home/pritika/workspace/layout_structure/XFUND_es/combined/xfun_es.json",'w')
+json.dump(final_box_dict, final_file, indent = 6, ensure_ascii=False)
+
         

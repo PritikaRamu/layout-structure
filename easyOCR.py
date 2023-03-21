@@ -4,6 +4,14 @@ import cv2
 import numpy as np
 import json
 
+import argparse
+
+argParser = argparse.ArgumentParser()
+argParser.add_argument("--para", type=str, help="true/false")
+argParser.add_argument("--ip_dir", type=str, help="input directory with images")
+argParser.add_argument("--op_dir", type=str, help="output directory")
+args = argParser.parse_args()
+
 reader = easyocr.Reader(['ch_sim','en'], gpu =True)
 
 bbox_dict = {}
@@ -27,12 +35,26 @@ def bbox_easyocr(img,text_threshold = 0.7, paragraph = False, slope_ths = 0.1, y
       
       cv2.rectangle(pic, (x1, y1), (x2, y2), (0, 0, 255), 2)
       box.append([x1,y1,x2-x1,y2-y1])
-    cv2.imwrite(f"FUNSD_easy/{img.split('/')[-1]}", pic)
+    
+    if args.para == 'true':
+      cv2.imwrite(f"{args.op_dir}/easy_para/{img.split('/')[-1]}", pic)
+    else:
+      cv2.imwrite(f"{args.op_dir}/easy_line/{img.split('/')[-1]}", pic)
     bbox_dict[img.split('/')[-1]] = box
 
-path = "/home/pritika/testing_data/images"
-for file in os.listdir(path):
-  bbox_easyocr(path+'/'+file,text_threshold=0.7, width_ths = 10, ycenter_ths= 2)
+path = args.ip_dir
 
-bbox_file = open("FUNSD_easy.json",'w')
+for file in os.listdir(path):
+  if args.para == 'true':
+     bbox_easyocr(path+'/'+file,text_threshold=0.7, paragraph= True, x_ths = 2, y_ths = 1)
+     bbox_file = open(f"{args.op_dir}/easy_para.json",'w')
+  else:
+     bbox_easyocr(path+'/'+file,text_threshold=0.7, width_ths = 10, ycenter_ths=1)
+     bbox_file = open(f"{args.op_dir}/easy_line.json",'w')
+
+if args.para == 'true':
+     bbox_file = open(f"{args.op_dir}/easy_para.json",'w')
+else:
+     bbox_file = open(f"{args.op_dir}/easy_line.json",'w')
+  
 json.dump(bbox_dict, bbox_file, indent = 6, ensure_ascii=False)
