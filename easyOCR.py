@@ -34,7 +34,7 @@ def bbox_easyocr(img,text_threshold = 0.7, paragraph = False, slope_ths = 0.1, y
       text = "".join([c if ord(c) < 128 else "" for c in text]).strip()
       
       cv2.rectangle(pic, (x1, y1), (x2, y2), (0, 0, 255), 2)
-      box.append([x1,y1,x2-x1,y2-y1])
+      box.append([x1,y1,x2,y2])
     
     if args.para == 'true':
       cv2.imwrite(f"{args.op_dir}/easy_para/{img.split('/')[-1]}", pic)
@@ -46,7 +46,7 @@ path = args.ip_dir
 
 for file in os.listdir(path):
   if args.para == 'true':
-     bbox_easyocr(path+'/'+file,text_threshold=0.7, paragraph= True, x_ths = 2, y_ths = 1)
+     bbox_easyocr(path+'/'+file,text_threshold=0.7, paragraph= True, x_ths = 4, y_ths = 2)
      bbox_file = open(f"{args.op_dir}/easy_para.json",'w')
   else:
      bbox_easyocr(path+'/'+file,text_threshold=0.7, width_ths = 10, ycenter_ths=1)
